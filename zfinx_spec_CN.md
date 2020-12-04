@@ -57,46 +57,46 @@ RV128和`Q`拓展并未被本规格所覆盖，但很容易拓展本规格以包
 
 
 
-## Semantic Differences
+## 语义差异
 
-The NaN-boxing behaviour of floating point arithmetic instructions is modified to suppress checking of sources only. Floating point results are always NaN-boxed to `XLEN` bits.
+浮点算术指令的NaN-boxing行为被修改了以抑制资源检查。浮点的结果总被NaN-box到 `XLEN`位。
 
-*NaN-boxing checking is removed as integer loads do not NaN-box their result, and so loading fewer than `XLEN` bits (for example using `LW` to load floating point data on an RV64 core) would otherwise require NaN-boxing in software which wastes performance and code-size*
+*当整数加载并未NaN-box其结果，并且加载少于`XLEN`位时，NaN-boxing检查被删除（例如使用`LW`以加载浮点在RV64内核上）。其它情况因此需要NaN-boxing在软件中，浪费了性能与代码体积。*
 
-There are no other semantic differences for floating point instruction behaviour between a `Zfinx` and a `non-Zfinx` core, but there are some differences for special cases (such as `x0` handling) as listed later in this specification.
+在`Zfinx`和`非Zfinx`间，对于浮点指令行为，没有其他语义差异了。但还有一些特殊用例（例如`x0`处理）的差异在本规格后续列出。
 
-## Discovery
+## 探索
 
-If `Zfinx` is specified then the compiler will have the following **#define** set
+如果 `Zfinx` 如果被制定了，将有下述**#define**：
 
-```
+```assembly
 __riscv_zfinx
 ```
 
-So software can use this to choose between `Zfinx` or normal versions of floating point code.
+软件可用此来在`Zfinx`和常规浮点代码间进行选择。
 
-Privileged code can detect whether `Zfinx` is implemented by checking if:
+特权指令，可以通过检查if来判断`Zfinx`是否被实现。
 
-1. `mstatus.FS` is hardwired to zero, and
-2. `misa.F` is 1 at reset, or is writeable
+1. `mstatus.FS` 被硬连线到 0
+2. `misa.F`被重置时为 1，或是可写的
 
-Non-privileged code can detect whether `Zfinx` is implemented as follows.
+非特权指令，可以通过下列代码来判断`Zfinx`是否被实现。
 
-```
-li a0, 0 # set a0 to zero
+```assembly
+li a0, 0 # 将a0赋为0
 
 #ifdef __riscv_zfinx
 
-fneg.s a0, a0 # this will invert a0
+fneg.s a0, a0 # 反转a0
 
 #else
 
-fneg.s fa0, fa0 # this will invert fa0
+fneg.s fa0, fa0 # 反转fa0
 
 #endif
 ```
 
-If a0 is non-zero then it’s a `Zfinx` core, otherwise it’s a **non-Zfinx** core. Both branches result in the **same encoding**, but the assembly syntax is different for each variant
+如果a0非0，则其为`Zfinx`内核，否则其为`非Zfinx`内核。此二分支编码相同，但是汇编语法对于变量是不同的。
 
 ## mstatus.fs
 
@@ -125,7 +125,7 @@ Note:
 1. **Zp64** from the P-extension specifies consistent register pair handling.
 2. Big endian mode is enabled in M-mode if `mstatus.MBE`=1, in S-mode if `mstatus.SBE`=1, or in U-mode if `mstatus.UBE`=1
 
-# x0 register target
+## x0 register target
 
 If a floating point instruction targets x0 then it will still execute, and will set any required flags in `fcsr`. It will not write to a target register. This matches the non-`Zfinx` behaviour for
 
@@ -139,7 +139,7 @@ If `fcsr.RM` is in an illegal state then floating point instruction behaviour is
 
 In the case of `RV32D Zfinx`, register pairs are used. See above for x0 handling.
 
-# NaN-boxing
+## NaN-boxing
 
 For `Zfinx` the NaN-boxing is limited to `XLEN` bits, not `FLEN` bits. Therefore a `FADD.S` executed on an `RV64D` core will write a 64-bit value (the MSH will be all 1’s). On an `RV32D Zfinx` core it will write a 32-bit register, i.e. a single X register only. This means there is semantic difference between these code sequences:
 
@@ -191,7 +191,7 @@ Table 2. NaN-boxing for supports configurations
 
 Therefore, for example, if an `FADD.S` instruction is issued on an `RV64F` core then the upper 32-bits will be set to one in the target integer register, or an `FADD.H` (floating point add half-word) instruction will set the upper 48-bits to one.
 
-# Assembly Syntax and Code Porting
+## Assembly Syntax and Code Porting
 
 Any references to `F` registers, or removed instructions will cause assembler errors.
 
@@ -217,7 +217,7 @@ on a `Zfinx` core.
 
 *We considered allowing pseudo-instructions for the deleted instructions for easier code porting. For example allowing FLW to be a pseudo-instruction for LW, but decided not to. Because the register specifiers must change to integer registers, it makes sense to also remove the use of FLW etc. In this way the user is forced to rewrite their code for a `Zfinx` core, reducing the chance of undiscovered porting bugs. This only affects assembly code, high level language code is unaffected as the compiler will target the correct architecture.*
 
-# Replaced Instructions
+## Replaced Instructions
 
 All floating point loads, stores and floating point to integer moves are removed on a `Zfinx` core. The following three tables give suggested replacements.
 
@@ -293,7 +293,7 @@ C.ADDI a2, zero, -1
 PACK a0, a1, a2
 ```
 
-# Emulation
+## Emulation
 
 A non-`Zfinx` core can run a `Zfinx` binary. M-mode software can do this:
 
@@ -314,7 +314,7 @@ There are corner cases around the use of x0 and register pairs for `RV32D`
 
 A `Zfinx` core cannot trap on floating point instructions by setting `mstatus.fs`=0, so the reverse emulation isn’t possible. The code must be recompiled (or ported for assembler).
 
-# ABI
+## ABI
 
 For details of the current calling conventions see:
 
@@ -326,7 +326,7 @@ The ABI when using `Zfinx` must be one of the the standard integer calling conve
 - ilp32
 - lp64
 
-# Floating Point Configurations To Reduce Area
+## Floating Point Configurations To Reduce Area
 
 To reduce the area overhead of FPU hardware new configurations will make the `F[N]MADD.*, F[N]MSUB.*` and `FDIV.*, FSQRT.*`` instructions optional in hardware. This then gives the choice of implementing them in software instead by:
 
@@ -374,7 +374,7 @@ rv32_Zfhbase_Zffbase_Zfdbase_Zfldstmv_Zfma_Zfdiv
 
 The options are designed to be additive, none of them remove instructions.
 
-# Rationale, why implement Zfinx?
+## Rationale, why implement Zfinx?
 
 Small embedded cores which need to implement floating point extensions have some options:
 
