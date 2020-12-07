@@ -2,7 +2,7 @@
 
 ## 总览
 
-`Zfinx` 拓展改变了全部已有和未来的拓展，将使用`F`的浮点寄存器替换为`X`寄存器。
+`Zfinx` 拓展改变了全部已有和未来的浮点拓展，将使用`F`的浮点寄存器替换为`X`寄存器。
 因而得名`F-in-X`。
 这并不影响Vector(`v`)部分的浮点指令。
 此外，`Zfinx`删除了全部的：
@@ -11,7 +11,7 @@
 2. 浮点存储指令（例如`FSW`）
 3. 整数 到/从 浮点 寄存器移动指令（例如`FMV.X.W`）
 
-在全部的情形下，都用整形版本来进行替代。
+在任何的情形下，都用整形版本来进行替代。
 
 在`Zfinx`内核中，浮点指令的汇编语法变成了指向`X`寄存器。
 因而，在 RV32F 内核上，合法的语法：
@@ -21,7 +21,7 @@ FLW     fa4, 12(sp)        // 加载浮点数据
 FMADD.S fa1, fa2, fa3, fa4 // RV32F的浮点算术指令
 ```
 
-换到`Zfinx`内核上，因为`F`寄存器不存在，因而`FLW`是不支持的指令。
+换到`Zfinx`内核上时，因为`F`寄存器不存在，因而`FLW`是不支持的指令。
 
 ```assembly
 LW      a4, 12(sp)     // 加载整形数据
@@ -30,13 +30,13 @@ FMADD.S a1, a2, a3, a4 // RV32F Zfinx的浮点算术指令
 
 **注意** 上述两个`FMADD.S`间只有汇编语法的差异，编码是相同的。
 
-汇编语法的改变，是为了避免代码移植的bug，因而寄存器必须被更新，而非只是复用非`Zfinx`代码。
+汇编语法的改变，是为了避免代码移植的bug，因而寄存器必须被更新，而非只是复用`非Zfinx`代码。
 
 `Zfinx`可用于任何使用`F`寄存器的拓展。
 寄存器数量对`Zfinx`（`I`或`E`拓展）并无影响，虽然`XLEN`和`FLWN`相对大小对本规格确有影响。
 
 本规格使用 D 表示64位浮点，使用 F 表示32位浮点，使用 Zfh 表示16位浮点。
-`Zfinx`的行为只受 数据宽度 影响，因而未来的编码格式是隐式支持的，例如 POSIT的64或32位编码格式。
+`Zfinx`的行为只受 数据宽度 影响，因而未来的编码格式是被隐式支持的，例如 POSIT 的64或32位编码格式。
 
 表1. 受支持的`Zfinx`配置
 
@@ -53,9 +53,7 @@ FMADD.S a1, a2, a3, a4 // RV32F Zfinx的浮点算术指令
 
 **注意** RV32FD Zfinx和RV32FD Zfh Zfinx需要寄存器对，因而比其他情况更为复杂。
 
-RV128和`Q`拓展并未被本规格所覆盖，但很容易拓展本规格以包含他们。
-
-
+RV128和`Q`拓展并未被本规格所涉及，但很容易拓展本规格以包含他们。
 
 ## 语义差异
 
@@ -67,7 +65,7 @@ RV128和`Q`拓展并未被本规格所覆盖，但很容易拓展本规格以包
 
 ## 探索
 
-如果 `Zfinx` 如果被制定了，将有下述**#define**：
+如果 `Zfinx` 如果被指明了，将有下述**#define**：
 
 ```assembly
 __riscv_zfinx
@@ -77,7 +75,7 @@ __riscv_zfinx
 
 特权指令，可以通过检查if来判断`Zfinx`是否被实现。
 
-1. `mstatus.FS` 被硬连线到 0
+1. `mstatus.FS` 被硬连线到 0 ，且
 2. `misa.F`被重置时为 1，或是可写的
 
 非特权指令，可以通过下列代码来判断`Zfinx`是否被实现。
@@ -96,48 +94,50 @@ fneg.s fa0, fa0 # 反转fa0
 #endif
 ```
 
-如果a0非0，则其为`Zfinx`内核，否则其为`非Zfinx`内核。此二分支编码相同，但是汇编语法对于变量是不同的。
+如果 a0 非0，则其为`Zfinx`内核，否则其为`非Zfinx`内核。此二分支编码相同，但是汇编语法对于变量是不同的。
 
 ## mstatus.fs
 
-For `Zfinx` cores `mstatus.fs` is hardwired to zero, because all the integer registers already form part of the current context. Note however that `fcsr` needs to be saved and restored. This gives a performance advantage when saving/restoring contexts.
+对于 `Zfinx` 内核来说 `mstatus.fs` 被硬连线为 0，因为所有的整数寄存器都已经成为上下文的一部分。
 
-Floating point instructions and `fcsr` accesses do *not* trap if `mstatus.fs`=0. This is different to non-`Zfinx` cores.
+**注意** 然而`fcsr`需要被保存和还原. 这在 保存/还原 上下文时,具有性能优势.
 
-## Register pair handling for XLEN < FLEN
+浮点指令和`fcsr`访问*不*会被捕获, 如果`mstatus.fs`为 0. 这点是和`非zfinx`内核不同的.
 
-For `RV32D`, all D-extension instructions which are implemented with `Zfinx` will access register pairs:
+## XLEN < FLEN时 寄存器对 的处理
 
-1. The specified register must be even, odd registers will cause an illegal instruction exception
-2. Even registers will cause an even/odd pair to be accessed
-   1. Accessing Xn will cause the {Xn+1, Xn} pair to be accessed. For example if n = 2
-      1. X2 is the least significant half (bits [31:0]) for little endian mode
-      2. X3 the most significant half (bits [63:32]) for little endian mode
-   2. For big endian mode the register mapping is reversed, so X2 is the most significant half, and X3 is the least significant half.
-3. X0 has special handling
-   1. Reading {X1, X0} will read all zeros
-   2. Writing {X1, X0} will discard the entire result, it will not write to X1
+对于`RV32D`, 所有`zfinx`实现的的 D拓展 指令, 都会访问 寄存器对.
 
-The register pairs are *only* used by the floating point arithmetic instructions. All integer loads and stores will only access `XLEN` bits, not `FLEN`.
+1. 指定的寄存器必须为偶数个, 奇数个寄存器会导致 非法指令异常.
+2. 偶数个寄存器会导致一个 偶/奇 对 被访问
+   1. 访问 Xn 会导致 {Xn+1, Xn} 对被访问, 例如 n=2
+      1. X2 是最不重要的一半 (位[31:0]) 用于小端序
+      2. X3 是最重要的的一半 (位[63:32]) 用于小端序
+   2. 对于大端序, 寄存器的映射反转, 因而 X2 是最重要的一半, X3是最不重要的一半.
+3. X0 要特殊处理
+   1. 读取 {X1, X0} 会读到都为 0
+   2. 写入 {X1, X0} 会抛弃整个结果, 而不会写入 X1
 
-Note:
+寄存器对`只`用于浮点算术指令. 所有的整形加载和存储会只读取`XLEN`位, 而非`FLEN`.
 
-1. **Zp64** from the P-extension specifies consistent register pair handling.
-2. Big endian mode is enabled in M-mode if `mstatus.MBE`=1, in S-mode if `mstatus.SBE`=1, or in U-mode if `mstatus.UBE`=1
+**注意**
 
-## x0 register target
+1. P拓展的**Zp64**指定了一致的 寄存器对 处理 
+2. 若在 M模式, 或在 S模式, 或在 U模式 下, `mstatus.MBE`=1, 则启用 大端序 模式
 
-If a floating point instruction targets x0 then it will still execute, and will set any required flags in `fcsr`. It will not write to a target register. This matches the non-`Zfinx` behaviour for
+## 以 x0寄存器 为目标
 
-```
+如果一个浮点指令以 X0 为目标, 其仍会被执行, 并会在`fcsr`中设置任何需要的标志. 这样不会写入目标寄存器. 下述匹配了`非Zfinx`的行为
+
+```assembly
 fcvt.w.s x0, f0
 ```
 
-If the floating point source is invalid then it will set the `fflags.NV` bit, regardless of whether `Zfinx` is implemented. The target register is not written as it is x0.
+如果 源浮点 是非法的, 那么就会设置`fflags.NV`位, 无论`Zfinx`是否被实现. 目标寄存器 因是 X0 而不会被写入.
 
-If `fcsr.RM` is in an illegal state then floating point instruction behaviour is the same whether the target register is x0 is not, i.e. targetting x0 doesn’t disable any execution side effects.
+如果`fcsr.RM`处于非法状态, 无论目标是否为 X0 ,浮点指令行为都相同. 例如, 以 X0 为目标不会禁用任何执行的副作用.
 
-In the case of `RV32D Zfinx`, register pairs are used. See above for x0 handling.
+`RV32D Zfinx`的案例, 会用到 寄存器对. 请参阅上文 X0 的处理.
 
 ## NaN-boxing
 
@@ -404,4 +404,3 @@ Therefore `Zfinx` should allow for small embedded cores to support floating poin
 2. Similar context switch time as an integer only core
    1. there are no `F` registers to save/restore
 3. Reduced code size by removing the floating point library
-
